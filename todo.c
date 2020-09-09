@@ -12,11 +12,14 @@
 #define STAT_FINISHED "WIP"
 #define STAT_WIP "done"
 
-#define FILENAME_W 24
-#define ITEM_TITLE_W 50
-#define ITEM_DESC_W 200
-#define ITEM_DATE_W 8
-#define ITEM_TIME_W 4
+#define FILENAME_W      24
+#define ITEM_TITLE_W    50
+#define ITEM_DESC_W     200
+#define ITEM_DATE_W     8
+#define ITEM_TIME_W     4
+#define ITEM_STATUS_W   16
+
+#define LIST_ITEM_MAX   1024
 
 #define CMD_NONE ""
 #define CMD_HELP "help"
@@ -27,15 +30,24 @@
 
 // List item
 struct item_t {
-    unsigned int id;               // task ID
+    unsigned int id;                // task ID
     char title[ITEM_TITLE_W];       // name of task
     char desc[ITEM_DESC_W];         // description of task
     char date[ITEM_DATE_W];         // mm:dd:yyy
     char time[ITEM_TIME_W];         // hh:mm
     int flag;                       // important flag
     int status;                     // 0: unfinished, 1-99: WIP, 100: finished
-    char status_str[16];            // status description
+    char status_str[ITEM_STATUS_W]; // status description
 };
+
+// List file data
+struct todo_file_t {
+    item_t list[LIST_ITEM_MAX];     // array of list items
+    size_t item_count;              // count of actual items
+    size_t items_finished;          // count of items finished
+    size_t items_unfinished;        // count of items unfinished
+    size_t items_wip;               // count of items in progress
+}
 
 // Argument values
 struct arg_t {
@@ -45,6 +57,8 @@ struct arg_t {
 
 DIR *dir;
 FILE *list_file;
+
+todo_file_t *todo;
 
 char cmd_buf[8];
 char file_buf[FILENAME_W + 6]; // + .todo
@@ -107,28 +121,6 @@ const char *get_ext(const char *filename) {
 }
 
 /**
- * List all .todo files in the current directory
-*/
-void list_todo_files() {
-    struct dirent *file;
-
-    // open current directory
-    dir = opendir(".");
-    if (dir == NULL) {
-        printf("Unable to read directory\n");
-        return;
-    }
-    while ((file = readdir(dir))) {
-        if (!strcmp(file->d_name, ".") || !strcmp(file->d_name, ".."))
-            continue;
-        if (!strcmp(EXT, get_ext(file->d_name))) {
-            printf("%s\n", file->d_name);
-        }
-    }
-    closedir(dir);
-}
-
-/**
  * Find a .todo file in the current directory to use by default
 */
 char *seek_todo_file() {
@@ -166,7 +158,66 @@ void open_todo_file(const char *file) {
         printf("Failed to open todo file %s\n", file);
         exit(1);
     }
+    printf("Using list %s\n", file);
 }
+
+/**
+ * Decide to open default file, open specified file, or make new file
+*/
+void select_file(int c) {
+
+    // file specified
+    if (args.use_file) {
+        strcpy(file_buf, args.list);
+        file_special = 1;
+    }
+    // unspecified
+    else {
+        char *list = seek_todo_file();
+        if (list == NULL) {
+            printf("Could not locate a todo file in current directory\n");
+            exit(1);
+        }
+        strcpy(file_buf, list);
+    }
+
+    open_todo_file(file_buf);
+}
+
+
+// ###########################################
+/**
+ * List all .todo files in the current directory
+*/
+void list_todo_files() {
+    struct dirent *file;
+
+    // open current directory
+    dir = opendir(".");
+    if (dir == NULL) {
+        printf("Unable to read directory\n");
+        return;
+    }
+    while ((file = readdir(dir))) {
+        if (!strcmp(file->d_name, ".") || !strcmp(file->d_name, ".."))
+            continue;
+        if (!strcmp(EXT, get_ext(file->d_name))) {
+            printf("%s\n", file->d_name);
+        }
+    }
+    closedir(dir);
+}
+
+/**
+ * Make a new list
+*/
+void list_add() {
+    todo = malloc(sizeof(todo_file_t));
+}
+
+
+// ###########################################
+
 
 /**
  * Main process
@@ -176,6 +227,9 @@ void process(char *progname) {
     // assume reading a .todo file is needed
     int need_file = 1;
 
+    // for required specified file
+    int file_special = 0;
+
     if (!strcmp(CMD_LIST, cmd_buf)) {
         need_file = 0;
         list_todo_files();
@@ -184,39 +238,12 @@ void process(char *progname) {
         need_file = 0;
         usage(progname);
     }
-    else if (!strcmp(CMD_NONE, cmd_buf)) {
-
+    else if (!strcmp(CMD_NEW), cmd_buf) {
+        cmd_add();
     }
-    else if (!strcmp(CMD_NONE, cmd_buf)) {
-
-    }
-    else if (!strcmp(CMD_NONE, cmd_buf)) {
-
-    }
-    else if (!strcmp(CMD_NONE, cmd_buf)) {
-
-    }
-
 
     // file needed to process command
-    if (need_file) {
-
-        // file specified
-        if (args.use_file) {
-            strcpy(file_buf, args.list);
-        }
-        // unspecified
-        else {
-            char *list = seek_todo_file();
-            if (list == NULL) {
-                printf("Could not locate a todo file in current directory\n");
-                exit(1);
-            }
-            strcpy(file_buf, list);
-        }
-
-        open_todo_file(file_buf);
-    }
+    select_file(need_file);
 }
 
 
@@ -241,9 +268,14 @@ int main(int argc, char **argv) {
 
 
 
-    // clean
+    // CLEAN --------
+    // close open file
     if (list_file != NULL) {
         fclose(list_file);
+    }
+    // free list memory
+    if (todo != NULL) {
+        free(todo);
     }
 
     return 0;
