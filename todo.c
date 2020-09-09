@@ -13,6 +13,10 @@
 #define STAT_WIP "done"
 
 #define FILENAME_W 24
+#define ITEM_TITLE_W 50
+#define ITEM_DESC_W 200
+#define ITEM_DATE_W 8
+#define ITEM_TIME_W 4
 
 #define CMD_NONE ""
 #define CMD_HELP "help"
@@ -23,14 +27,14 @@
 
 // List item
 struct item_t {
-    unsigned char id;       // task ID
-    char title[50];         // name of task
-    char desc[200];         // description of task
-    char date[8];           // mm:dd:yyy
-    char time[4];           // hh:mm
-    int flag;               // important flag
-    int status;             // 0: unfinished, 1-99: WIP, 100: finished
-    char status_str[16];    // status description
+    unsigned int id;               // task ID
+    char title[ITEM_TITLE_W];       // name of task
+    char desc[ITEM_DESC_W];         // description of task
+    char date[ITEM_DATE_W];         // mm:dd:yyy
+    char time[ITEM_TIME_W];         // hh:mm
+    int flag;                       // important flag
+    int status;                     // 0: unfinished, 1-99: WIP, 100: finished
+    char status_str[16];            // status description
 };
 
 // Argument values
@@ -45,17 +49,31 @@ FILE *list_file;
 char cmd_buf[8];
 char file_buf[FILENAME_W + 6]; // + .todo
 
+/**
+ * Print usage
+*/
 void usage(char *progname) {
     printf("%s: manage your todo lists.\n", basename(progname));
     printf("\n==== COMMANDS ====\n");
-    printf("  help      Print help (this message)\n");
     printf("  new       Create a new todo list\n");
     printf("  ls        List all todo lists in the current directory\n");
     printf("  add       Add an item to a list\n");
     printf("  rm        Remove an item from a list\n");
+    printf("  help      Print help (this message)\n");
 
-    printf("\n==== FLAGS ====\n");
+    printf("\n==== ITEM DATA FLAGS ====\n");
+    printf("  -T [name]         item name (%u)\n", ITEM_TITLE_W);
+    printf("  -m [desc]         item description (%u)\n", ITEM_DESC_W);
+    printf("  -d [mm/dd/yyyy]   item due date\n");
+    printf("  -t [mm:hh]        item due time\n");
+    printf("  -p [status]       item completion status (0-100)\n");
+    printf("  -f [flag]         item important flag\n");
+
+    printf("\n==== OTHER FLAGS ====\n");
     printf("  -a [name] Specify the name of the list\n");
+    printf("  -s        Sort the list by date-time\n");
+    printf("  -I        Only show items flagged important\n");
+    printf("  -x        Show extra list information\n");
 }
 
 void error(char *err) {
@@ -63,6 +81,9 @@ void error(char *err) {
     exit(1);
 }
 
+/**
+ * Parse the commandline arguments
+*/
 void parse_args(int argc, char **argv) {
     long opt;
     while ((opt = getopt(argc, argv, "a:")) != -1) {
@@ -85,6 +106,9 @@ const char *get_ext(const char *filename) {
     return dot + 1;
 }
 
+/**
+ * List all .todo files in the current directory
+*/
 void list_todo_files() {
     struct dirent *file;
 
@@ -104,7 +128,9 @@ void list_todo_files() {
     closedir(dir);
 }
 
-
+/**
+ * Find a .todo file in the current directory to use by default
+*/
 char *seek_todo_file() {
     struct dirent *file;
 
@@ -122,32 +148,50 @@ char *seek_todo_file() {
             return file->d_name;
         }
     }
-
-
     closedir(dir);
     return NULL;
 }
 
+/**
+ * Open the specified .todo file
+*/
 void open_todo_file(const char *file) {
-    if (0 != strcmp(EXT, get_ext(args.list))) {
+    if (strcmp(EXT, get_ext(file))) {
             printf("Specified file %s does not have extension \'.todo\'\n", file);
             exit(1);
         }
 
-    list_file = fopen(args.list, "r+");
+    list_file = fopen(file, "r+");
     if (list_file == NULL) {
         printf("Failed to open todo file %s\n", file);
         exit(1);
     }
 }
 
-void process() {
+/**
+ * Main process
+*/
+void process(char *progname) {
 
+    // assume reading a .todo file is needed
     int need_file = 1;
 
     if (!strcmp(CMD_LIST, cmd_buf)) {
         need_file = 0;
         list_todo_files();
+    }
+    else if (!strcmp(CMD_HELP, cmd_buf)) {
+        need_file = 0;
+        usage(progname);
+    }
+    else if (!strcmp(CMD_NONE, cmd_buf)) {
+
+    }
+    else if (!strcmp(CMD_NONE, cmd_buf)) {
+
+    }
+    else if (!strcmp(CMD_NONE, cmd_buf)) {
+
     }
     else if (!strcmp(CMD_NONE, cmd_buf)) {
 
@@ -193,7 +237,8 @@ int main(int argc, char **argv) {
     }
 
     // main process
-    process();
+    process(argv[0]);
+
 
 
     // clean

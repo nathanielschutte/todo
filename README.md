@@ -13,11 +13,10 @@ todo [action] -a [listname] -[item modify flags] -Isx
 ### Flags
 - 'a' specifies which list to modify, create, delete, etc...
 - 's' sorts the list by date-time
-- 'I' shows only flagged "important" list items
+- 'i' shows only flagged "important" list items
 - 'x' shows extra information about a list
 
 List item data flags:
-- 'i' the list item ID
 - 'T' the list item name
 - 'm' the list item description
 - 'd' the list item date
