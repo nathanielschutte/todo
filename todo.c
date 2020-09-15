@@ -6,6 +6,8 @@
 #include <libgen.h>
 #include <unistd.h>
 
+#define _DEBUG 1
+
 #define EXT "todo"
 
 #define STAT_UNFINISHED "unfinished"
@@ -42,12 +44,12 @@ struct item_t {
 
 // List file data
 struct todo_file_t {
-    item_t list[LIST_ITEM_MAX];     // array of list items
+    struct item_t list[LIST_ITEM_MAX];     // array of list items
     size_t item_count;              // count of actual items
     size_t items_finished;          // count of items finished
     size_t items_unfinished;        // count of items unfinished
     size_t items_wip;               // count of items in progress
-}
+};
 
 // Argument values
 struct arg_t {
@@ -58,10 +60,12 @@ struct arg_t {
 DIR *dir;
 FILE *list_file;
 
-todo_file_t *todo;
+struct todo_file_t *todo;
 
 char cmd_buf[8];
 char file_buf[FILENAME_W + 6]; // + .todo
+
+char errorString[512];
 
 /**
  * Print usage
@@ -109,15 +113,30 @@ void parse_args(int argc, char **argv) {
             }
             strcpy(args.list, optarg);
             args.use_file = 1;
+            //printf("TEST: %s  %u\n", args.list, args.use_file);
             break;
         }
     }
 }
 
+/**
+ * Return file extension of a given filename as string
+*/
 const char *get_ext(const char *filename) {
     const char *dot = strchr(filename, '.');
     if (! dot || dot == filename) return "";
     return dot + 1;
+}
+
+/**
+ * Allocate new file object and initiliaze
+*/
+void alloc_new() {
+    todo = malloc(sizeof(struct todo_file_t));
+    todo->item_count = 0;
+    todo->items_finished = 0;
+    todo->items_unfinished = 0;
+    todo->items_wip = 0;
 }
 
 /**
@@ -153,23 +172,29 @@ void open_todo_file(const char *file) {
             exit(1);
         }
 
+    errno = 0;
     list_file = fopen(file, "r+");
     if (list_file == NULL) {
-        printf("Failed to open todo file %s\n", file);
+        printf("Failed to open todo file %s - error:%d\n", file, errno);
+        perror(errorString);
+        printf("%s\n", errorString);
         exit(1);
     }
+
+    // ---
     printf("Using list %s\n", file);
 }
 
 /**
- * Decide to open default file, open specified file, or make new file
+ * Decide to open default file  (flag=0), 
+ * open specified file          (flag=1).
 */
-void select_file(int c) {
+void select_file(int flag) {
 
-    // file specified
-    if (args.use_file) {
+    // file specified, add extension
+    if (flag) {
         strcpy(file_buf, args.list);
-        file_special = 1;
+        strcpy(file_buf + strlen(file_buf), ".todo");
     }
     // unspecified
     else {
@@ -182,6 +207,24 @@ void select_file(int c) {
     }
 
     open_todo_file(file_buf);
+}
+
+/**
+ * For debug - display working file
+*/
+void display_working_file() {
+    if (args.use_file) {
+        printf(" --> %s\n", args.list);
+    }
+    else {
+        char *list = seek_todo_file();
+        if (list == NULL) {
+            printf(" --> NULL\n");
+        }
+        else {
+            printf(" --> %s\n", list);
+        }
+    }
 }
 
 
@@ -212,7 +255,11 @@ void list_todo_files() {
  * Make a new list
 */
 void list_add() {
-    todo = malloc(sizeof(todo_file_t));
+    if (_DEBUG) {
+        display_working_file();
+    }
+
+    alloc_new();
 }
 
 
@@ -233,17 +280,33 @@ void process(char *progname) {
     if (!strcmp(CMD_LIST, cmd_buf)) {
         need_file = 0;
         list_todo_files();
+        exit(0);
     }
     else if (!strcmp(CMD_HELP, cmd_buf)) {
-        need_file = 0;
         usage(progname);
+        exit(0);
     }
-    else if (!strcmp(CMD_NEW), cmd_buf) {
-        cmd_add();
+    else if (!strcmp(CMD_NEW, cmd_buf)) {
+        file_special = 1;
     }
 
-    // file needed to process command
-    select_file(need_file);
+    // ========== file needed to process command ==========
+    if (need_file) {
+
+        // specific filename required and not given
+        if (file_special && !args.use_file) {
+            printf("List name must be specified for this command \"-a [name]\"\n");
+            exit(1);
+        }
+        else {
+            select_file(args.use_file);
+        }
+    }
+
+    // command routines with file open
+    if (!strcmp(CMD_NEW, cmd_buf)) {
+        list_add();
+    }
 }
 
 
