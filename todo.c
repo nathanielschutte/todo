@@ -173,7 +173,7 @@ void open_todo_file(const char *file) {
         }
 
     errno = 0;
-    list_file = fopen(file, "r+");
+    list_file = fopen(file, "a+");
     if (list_file == NULL) {
         printf("Failed to open todo file %s - error:%d\n", file, errno);
         perror(errorString);
