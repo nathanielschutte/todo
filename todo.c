@@ -15,6 +15,8 @@
 #define STAT_WIP "done"
 
 #define FILENAME_W      24
+#define CMD_W           4
+
 #define ITEM_TITLE_W    50
 #define ITEM_DESC_W     200
 #define ITEM_DATE_W     8
@@ -55,6 +57,7 @@ struct todo_file_t {
 struct arg_t {
     int use_file;
     char list[FILENAME_W];
+    char cmd[CMD_W];
 } args;
 
 DIR *dir;
@@ -62,7 +65,7 @@ FILE *list_file;
 
 struct todo_file_t *todo;
 
-char cmd_buf[8];
+char cmd_buf[CMD_W];
 char file_buf[FILENAME_W + 6]; // + .todo
 
 char errorString[512];
@@ -104,7 +107,7 @@ void error(char *err) {
 */
 void parse_args(int argc, char **argv) {
     long opt;
-    while ((opt = getopt(argc, argv, "a:")) != -1) {
+    while ((opt = getopt(argc, argv, "a:C:")) != -1) {
         switch (opt) {
             case 'a':
             if (strlen(optarg) >= FILENAME_W) {
@@ -114,6 +117,13 @@ void parse_args(int argc, char **argv) {
             strcpy(args.list, optarg);
             args.use_file = 1;
             //printf("TEST: %s  %u\n", args.list, args.use_file);
+            break;
+            case 'C':
+            if (strlen(optarg) > CMD_W) {
+                printf("Command not found");
+                exit(1);
+            }
+            strcpy(args.cmd, optarg);
             break;
         }
     }
@@ -315,20 +325,17 @@ int main(int argc, char **argv) {
 
     // get arguments
     args.use_file = 0;
+    memset(args.cmd, 0, CMD_W);
+    strcpy(cmd_buf, CMD_NONE);
     parse_args(argc, argv);
 
     // command specified
-    if (argc > 1) {
-        strcpy(cmd_buf, argv[1]);
-    }
-    // just "todo": display default todo list
-    else {
-        strcpy(cmd_buf, CMD_NONE);
+    if (args.cmd[0] != 0) {
+        strcpy(cmd_buf, args.cmd);
     }
 
     // main process
     process(argv[0]);
-
 
 
     // CLEAN --------
